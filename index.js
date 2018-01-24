@@ -56,7 +56,7 @@ const ERROR_UNSUPPORTED_OPTERATION = "UnsupportedOperationError";
 const ERROR_UNEXPECTED_INFO = "UnexpectedInformationReceivedError";
 
 //path for light
-//const BASE_URL = "http://localhost:9000/gw/v1";
+const AUTHORIZED_USERNAME = "1XjgqwR1IlvS5BzJdCk9zs3pf8qx8kpYSO3tMzUN";
 const BASE_URL_PARTION = "/gw/v1";
 const DISCOVERY_DEVICE = "/device";
 const DISCOVERY_GROUP = "/group";
@@ -91,9 +91,8 @@ function handleResponse(response,id,unit,body,callback1,callback2){
 //request from skill adapter to gateway
 var gwRequest= function(p, m, id, unit, body, callback1, callback2){
   var options = {
-    host: gate.sl.gw,
-    port: gate.sl.portnum,
-    path: BASE_URL_PARTION + p,
+    host: gate.sl.ip,
+    path: p,
     method: m,
     headers: {
       'Content-Type': 'application/json'
@@ -119,10 +118,18 @@ var gwRequest= function(p, m, id, unit, body, callback1, callback2){
 
 var makeResponse = function(gwResponseData,id,unit,body,callback){
 	var response = null;
-	var success = gwResponseData.result_code == "200";
+	var success = null;
+  if(body == null)
+    success = gwResponseData[0].error == undefined;
+  else
+    success = gwResponseData.error == undefined;
+  //hue의 경우에는, response가 배열로 온다.
+  //음성명령의 경우에는 한꺼번에 여러 명령을 줄 수는 없으므로
+  //한 번에 한 operation만 요청된다고 가정하고
+  //첫 번째 entry만 사용하도록 하겠다.
 	
 	if(success){
-    var r = gwResponseData.result_data;
+    var r = gwResponseData.state;
     if(unit == "device" && body ==null){ //if device discovery
       var d = r.device_list;
     	createEndpoints(d,"did","device",callback);
@@ -138,64 +145,22 @@ var makeResponse = function(gwResponseData,id,unit,body,callback){
     else if(body !=null){//If Adjust-things
       value = null;
       var min=null,max=null;
-      var v;
-      switch(unit){
-        case "device":
-          v = r.light;
-          break;
-        case "group":
-          v = ((r.group_list)[0]);
-          body["onlevel"] = 100;
-          break;
-        case "uspace":
-          v = ((r.device_list)[0]).light;
-          break;
-      }
       switch(name){
-        case RESPONSE_POWER:
-          /*min = 0; max = 2; value = 1;
-          body["level"] = v.level;
-          body["colortemp"] = v.colortemp;
-          break;*/
-        /*case RESPONSE_COLOR:
-          min = 0; max = 2; value = 1;
-          //body["level"] = v.level;
-          //body["colortemp"] = v.colortemp;
-          body["onoff"] = v.onoff;
-          break;*/
         case RESPONSE_BRIGHTNESS:
-          body["onoff"] = v.onoff;
-          body["colortemp"] = v.colortemp;
-          //var isSet = body.isSet;
-          value = body.level;
-          //body = {};
-          //if(!isSet)
-            body["level"] = value + v.level;
-          //else
-          //  body["level"] = value;
+          value = body.bri;
+          body["bri"] = value + r.bri;
           min = 0;
           max = 100;
-          value = body.level;
+          value = body.bri;
           break;
         case RESPONSE_COLOR_TEMPERATURE:
-          body["onoff"]=v.onoff;
-          body["level"]=v.level;
-          //var isSet = body.isSet;
-          value = body.colortemp;
-          //body = {};
-          //if(!isSet)
-            body["colortemp"] = value + v.colortemp;
-          //else
-          //  body["colortemp"] = value;
-          min = 2700; // alexa's range is from 1000 but sl2.0 is from 2700
-          max = 6500; // alexa's range is from 10000 but sl2.0 is from 6500
-          value = body.colortemp;
+          value = body.ct;
+          body["ct"] = value + MirekToKevin(r.ct);
+          body["ct"] = KevinToMirek(body["ct"]);
+          max = KevinToMirek(2000); // alexa's range is from 1000 but hue is from 2000
+          min = KevinToMirek(6500); // alexa's range is from 10000 but hue is from 6500
+          value = body.ct;
           break;
-        /*default:
-          
-          response = createErrorResponse(header,endpoint,payload);
-          callback(response);
-          break;*/
       }
       //In validRange?
       if(value < min || value > max){ //invalid
@@ -314,15 +279,13 @@ var handlePowerControl = function(event,callback){
     var requestName = event.directive.header.name;
     switch(requestName){
         case NAME_TURN_ON:
-						body["onoff"] = "on";
+						body["on"] = true;
             value = CONTEXT_VALUE_ON;
-            //var path = createControlPath(id,unit,true);
-            //gwRequest(path,'GET',id,unit,body,makeResponse,callback);
             var path = createControlPath(id,unit,false);
    	        gwRequest(path,'PUT',null,null,body,makeResponse,callback);
             break;
         case NAME_TURN_OFF:
-						body["onoff"] = "off";
+						body["on"] = false;
             value = CONTEXT_VALUE_OFF;
             //var path = createControlPath(id,unit,true);
             //gwRequest(path,'GET',id,unit,body,makeResponse,callback);
@@ -390,17 +353,13 @@ var handleBrightnessControl = function(event,callback){
     switch(requestName){
         case NAME_SET_BRIGHTNESS:
             value = event.directive.payload.brightness;
-            body["level"] = value;
-            //body["isSet"] = true;
-            //var path = createControlPath(id,unit,true);
-            //gwRequest(path,'GET',id,unit,body,makeResponse,callback);
+            body["bri"] = value;
             var path = createControlPath(id,unit,false);
             gwRequest(path,'PUT',null,null,body,makeResponse,callback);
             break;
         case NAME_ADJUST_BRIGHTNESS:
             value = event.directive.payload.brightnessDelta;
-            body["level"] = value;
-            //body["isSet"] = false;
+            body["bri"] = value;
             var path = createControlPath(id,unit,true);
             gwRequest(path,'GET',id,unit,body,makeResponse,callback);
             break;
@@ -437,8 +396,8 @@ var handleColorControl = function(event,callback){
         case NAME_SET_COLOR:
             value = event.directive.payload.color;
             body["hue"] = value.hue | 0;
-            body["saturation"] = Number(value.saturation) * 100 | 0;
-            body["brightness"] = Number(value.brightness) * 100 | 0;
+            body["sat"] = Number(value.saturation) * 100 | 0;
+            body["bri"] = Number(value.brightness) * 100 | 0;
             if(checkHue(body.hue) || checkBrightnessAndSaturation(body.brightness) || checkBrightnessAndSaturation(body.saturation)){
               payload = {
                 "type": "VALUE_OUT_OF_RANGE",
@@ -451,8 +410,6 @@ var handleColorControl = function(event,callback){
               var response = createErrorResponse(header,endpoint,payload);
               callback(response);
             }
-            //var path = createControlPath(id,unit,true);
-            //gwRequest(path,'GET',id,unit,body,makeResponse,callback);
             var path = createControlPath(id,unit,false);
             gwRequest(path,'PUT',null,null,body,makeResponse,callback);
             break;
@@ -495,24 +452,19 @@ var handleColorTemperatureControl = function(event,callback){
     switch(requestName){
         case NAME_DECREASE_COLOR_TEMPERATURE:
             value = -1000;
-            body["colortemp"] = value;
-            //body["isSet"] = false;
+            body["ct"] = value;
             var path = createControlPath(id,unit,true);
             gwRequest(path,'GET',id,unit,body,makeResponse,callback);
             break;
         case NAME_INCREASE_COLOR_TEMPERATURE:
             value = 1000;
-            body["colortemp"] = value;
-            //body["isSet"] = false;
+            body["ct"] = value;
             var path = createControlPath(id,unit,true);
             gwRequest(path,'GET',id,unit,body,makeResponse,callback);
             break;
         case NAME_SET_COLOR_TEMPERATURE:
             value = event.directive.payload.colorTemperatureInKelvin;
-            body["colortemp"] = value;
-            //body["isSet"] = true;
-            //var path = createControlPath(id,unit,true);
-            //gwRequest(path,'GET',id,unit,body,makeResponse,callback);
+            body["ct"] = KevinToMirek(value);
             var path = createControlPath(id,unit,false);
             gwRequest(path,'PUT',null,null,body,makeResponse,callback);
             break;
@@ -656,18 +608,30 @@ var createErrorResponse = function(header,endpoint,payload){
 };
 
 var createControlPath = function(id,unit,isAdjust){
-  var path = "/"+unit+"/"+id;
-  if(!isAdjust){
+  var path = "/api/"+AUTHORIZED_USERNAME;
+  if(isAdjust){
     if(unit == "device")
-      path = path + "/light";
+      path = path + "/lights/"+id;
     else
-      path = path + "/status";
+      path = path + "/groups/"+id;
   }
   else{
-    if(unit != "device")
-      path = path + "/dstatus";
+    if(unit == "device")
+      path = path + "/lights/"+id+"/state";
+    else
+      path = path + "/groups/"+id+"/action";
   }
   return path;
+}
+var KevinToMirek = function(colortemp){
+  var ct = 1/colortemp * 1000000;
+  ct = ct | 0;
+  return ct;
+}
+var MirekToKevin = function(ct){
+  var colortemp = 1/ct * 1000000;
+  colortemp = colortemp | 0;
+  return colortemp;
 }
 
 var log = function(title,msg){

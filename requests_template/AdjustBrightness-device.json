@@ -12,7 +12,7 @@
         "type": "BearerToken",
         "token": "access-token-from-Amazon"
       },
-      "endpointId": 4,
+      "endpointId": 1,
       "cookie": {
         "unit": "device"
       }
