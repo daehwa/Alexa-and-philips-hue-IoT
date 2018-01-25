@@ -58,9 +58,8 @@ const ERROR_UNEXPECTED_INFO = "UnexpectedInformationReceivedError";
 //path for light
 const AUTHORIZED_USERNAME = "1XjgqwR1IlvS5BzJdCk9zs3pf8qx8kpYSO3tMzUN";
 const BASE_URL_PARTION = "/gw/v1";
-const DISCOVERY_DEVICE = "/device";
-const DISCOVERY_GROUP = "/group";
-const DISCOVERY_UNIT_SPACE = "/uspace";
+const DISCOVERY_DEVICE = "/api/"+AUTHORIZED_USERNAME+"/lights";
+const DISCOVERY_GROUP = "/api/"+AUTHORIZED_USERNAME+"/groups";
 
 //for light request
 var http = require('http');
@@ -118,31 +117,36 @@ var gwRequest= function(p, m, id, unit, body, callback1, callback2){
 
 var makeResponse = function(gwResponseData,id,unit,body,callback){
 	var response = null;
-	var success = null;
-  if(body == null)
-    success = gwResponseData[0].error == undefined;
+	var success = gwResponseData[0];
+  if(success == null)
+    success = true;
   else
-    success = gwResponseData.error == undefined;
+    success = false;
   //hue의 경우에는, response가 배열로 온다.
   //음성명령의 경우에는 한꺼번에 여러 명령을 줄 수는 없으므로
   //한 번에 한 operation만 요청된다고 가정하고
   //첫 번째 entry만 사용하도록 하겠다.
 	
 	if(success){
-    var r = gwResponseData.state;
     if(unit == "device" && body ==null){ //if device discovery
-      var d = r.device_list;
-    	createEndpoints(d,"did","device",callback);
+      var d = gwResponseData;
+      if(Object.keys(d).length === 0)
+        d = null;
+    	createEndpoints(d,"device",callback);
     }
 		else if(unit == "group" && body == null){ //if group discovery
-      var g = r.group_list;
-			createEndpoints(g,"gdid","group",callback);
-		}
-		else if(unit == "uspace" && body == null){ //if unit space discovery
-      var u = r.uspace_list;
-			createEndpoints(u,"uspace_id","uspace",callback);
+      var g = gwResponseData;
+      if(Object.keys(g).length === 0)
+        g = null;
+			createEndpoints(g,"group",callback);
 		}
     else if(body !=null){//If Adjust-things
+      var r;
+      if(unit == "device")
+        r = gwResponseData.state;
+      else if(unit == "group")
+        r = gwResponseData.action;
+
       value = null;
       var min=null,max=null;
       switch(name){
@@ -251,13 +255,13 @@ exports.handler = function(event,context,callback){
     //console.log("response (AWS Lambda -> Alexa Service):\r\n"+JSON.stringify(response)+"\r\n");
     //callback(null,response);
 };
-//handle Discovery: This discovers the devices, groups, and unit spaces
+//handle Discovery: This discovers the devices, and groups
 var handleDiscovery = function(event,callback){
     header = createHeader(NAMESPACE_DISCOVERY,RESPONSE_DISCOVER,event.directive.header.correlationToken);
     payload = null;
   	endpoints = new Array;
-    //unit space list view
-    gwRequest(DISCOVERY_UNIT_SPACE,'GET',null,"uspace",null,makeResponse,callback);
+    //group list view, Discovery
+    gwRequest(DISCOVERY_GROUP,'GET',null,"group",null,makeResponse,callback);
 };
 
 //handle Control
@@ -548,26 +552,20 @@ var createEndpoint = function(event){
 };
 
 //for Discovery endpoints
-var createEndpoints = function(r,id,unit,callback){
+var createEndpoints = function(r,unit,callback){
   var e = require('./responses_template/endpoints.json');
 
-  for(var i=0; i < r.length; i++){
-    var endpoint = JSON.parse(JSON.stringify(e));
-    endpoint["endpointId"] = r[i][id];
-    endpoint.cookie.unit = unit;
-		if(unit == "device")
-    	endpoint["friendlyName"] = "System Light " + r[i][id]; //device does not have its name, so I made it
-		else{
-      var name = unit + "_name";
-			endpoint["friendlyName"] = r[i][name];
+  if(r != null){
+    for(var key in r){
+      var endpoint = JSON.parse(JSON.stringify(e));
+      endpoint["endpointId"] = key;
+      endpoint.cookie.unit = unit;
+      endpoint["friendlyName"] = r[key].name;
+      endpoints.push(endpoint);
     }
-    endpoints.push(endpoint);
   }
 
-  if(unit =="uspace"){
-    gwRequest(DISCOVERY_GROUP,'GET',null,"group",null,makeResponse,callback);
-  }
-  else if(unit == "group"){
+  if(unit == "group"){
     gwRequest(DISCOVERY_DEVICE,'GET',null,"device",null,makeResponse,callback);
   }
   else{

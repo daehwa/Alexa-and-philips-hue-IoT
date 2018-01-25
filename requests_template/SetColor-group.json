@@ -1,8 +1,8 @@
 {
   "directive": {
     "header": {
-      "namespace": "Alexa.PowerController",
-      "name": "TurnOff",
+      "namespace": "Alexa.ColorController",
+      "name": "SetColor",
       "payloadVersion": "3",
       "messageId": "1bd5d003-31b9-476f-ad03-71d471922820",
       "correlationToken": "dFMb0z+PgpgdDmluhJ1LddFvSqZ/jCc8ptlAKulUj90jSqg=="
@@ -14,9 +14,15 @@
       },
       "endpointId": 1,
       "cookie": {
-        "unit": "device"
+        "unit": "group"
       }
     },
-    "payload": {}
+    "payload": {
+      "color": {
+        "hue": 350.5,
+        "saturation": 0.7138,
+        "brightness": 0.6524
+      }
+    }
   }
 }
