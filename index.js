@@ -158,7 +158,7 @@ var makeResponse = function(gwResponseData,id,unit,body,callback){
           value = body.bri;
           body["bri"] = value + r.bri;
           min = 0;
-          max = 100;
+          max = 255;
           value = body.bri;
           break;
         case RESPONSE_COLOR_TEMPERATURE:
@@ -376,7 +376,7 @@ var handleBrightnessControl = function(event,callback){
             response = handleUnsupportedOperation();
             break;
     }
-    if(value <0 || value >100){
+    if(value <0 || value >255){
         log("Error","Invalid value" + requestName);
         response = handleUnsupportedOperation();
     }
