@@ -120,8 +120,12 @@ var makeResponse = function(gwResponseData,id,unit,body,callback){
 	var success = gwResponseData[0];
   if(success == null)
     success = true;
-  else
-    success = false;
+  else{
+    if(success.error == undefined)
+      success = true;
+    else
+      success = false;
+  }
   //hue의 경우에는, response가 배열로 온다.
   //음성명령의 경우에는 한꺼번에 여러 명령을 줄 수는 없으므로
   //한 번에 한 operation만 요청된다고 가정하고
@@ -399,21 +403,9 @@ var handleColorControl = function(event,callback){
     switch(requestName){
         case NAME_SET_COLOR:
             value = event.directive.payload.color;
-            body["hue"] = value.hue | 0;
-            body["sat"] = Number(value.saturation) * 100 | 0;
-            body["bri"] = Number(value.brightness) * 100 | 0;
-            if(checkHue(body.hue) || checkBrightnessAndSaturation(body.brightness) || checkBrightnessAndSaturation(body.saturation)){
-              payload = {
-                "type": "VALUE_OUT_OF_RANGE",
-                "message":"Invalid color value",
-                "validRange":{
-                  "minumumValue": "H[0] S[0] B[0]",
-                  "maximumValue": "H[360] S[100] B[100]"
-                }
-              }
-              var response = createErrorResponse(header,endpoint,payload);
-              callback(response);
-            }
+            body["hue"] = value.hue/360 * 65280 | 0;
+            body["sat"] = Number(value.saturation) * 255 | 0;
+            body["bri"] = Number(value.brightness) * 255 | 0;
             var path = createControlPath(id,unit,false);
             gwRequest(path,'PUT',null,null,body,makeResponse,callback);
             break;
@@ -423,18 +415,6 @@ var handleColorControl = function(event,callback){
             break;
     }
 };
-var checkHue = function(hue){
-  if(hue < 0 || hue > 360)
-    return true;
-  else
-    return false;
-}
-var checkBrightnessAndSaturation = function(bORs){
-  if(bORs < 0 || bORs > 100)
-    return true;
-  else
-    return false;
-}
 //Color Temperature
 var handleColorTemperatureControl = function(event,callback){
     //init response entries
