@@ -61,6 +61,9 @@ const BASE_URL_PARTION = "/gw/v1";
 const DISCOVERY_DEVICE = "/api/"+AUTHORIZED_USERNAME+"/lights";
 const DISCOVERY_GROUP = "/api/"+AUTHORIZED_USERNAME+"/groups";
 
+//scenes
+var SLEEP_MODE = 4;
+
 //for light request
 var http = require('http');
 var gate = require("./gate.json");
@@ -83,7 +86,8 @@ function handleResponse(response,id,unit,body,callback1,callback2){
   response.on('end',function(){
     console.log("response (gateway -> AWS Lambda):\r\n"+serverData+"\r\n");
 		var d = JSON.parse(serverData);
-    callback1(d,id,unit,body,callback2);
+		if(callback1!=null)
+    	callback1(d,id,unit,body,callback2);
   });
 }
 
@@ -228,7 +232,21 @@ exports.handler = function(event,context,callback){
       console.log("response (AWS Lambda -> Alexa Service):\r\n"+JSON.stringify(response)+"\r\n");
       callback(null,response);
     };
-
+    //handle scene
+    var requestdNamespace = event.directive.header.namespace;
+    if(requestdNamespace == NAMESPACE_POWER_CONTROL){
+      console.log("adsfasdf");
+      var id = event.directive.endpoint.endpointId;
+      var unit = event.directive.endpoint.cookie.unit;
+      if(isScene(unit,id)){
+        switch(id){
+          case SLEEP_MODE:
+            handleSleepMode(event,returnResponse);
+            break;
+        }
+      }
+    }
+		//handle other things
     try{
         switch(requestdNamespace){
             case NAMESPACE_DISCOVERY:
@@ -458,6 +476,17 @@ var handleColorTemperatureControl = function(event,callback){
             break;
     }
 };
+
+var handleSleepMode = function(event,callback){
+  var id = event.directive.endpoint.endpointId;
+  var unit = event.directive.endpoint.cookie.unit;
+  var path = createControlPath(id,unit,false);
+  var body = {};
+  body["ct"] = KevinToMirek(3000);
+	body["bri"] = 10;
+  gwRequest(path,'PUT',id,unit,body,null,callback);
+};
+
 var handleUnsupportedOperation = function(){
     var header = createHeader(NAMESPACE_POWER_CONTROL,ERROR_UNSUPPORTED_OPTERATION,event.directive.header.correlationToken);
     var payload = {};
@@ -611,6 +640,11 @@ var MirekToKevin = function(ct){
   colortemp = colortemp | 0;
   return colortemp;
 }
+
+var isScene = function(unit,id){
+  return (unit == "group") && (id == SLEEP_MODE);
+};
+
 
 var log = function(title,msg){
     console.log('****' + title + ': ' + JSON.stringify(msg));
