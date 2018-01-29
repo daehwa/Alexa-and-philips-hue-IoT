@@ -62,7 +62,7 @@ const DISCOVERY_DEVICE = "/api/"+AUTHORIZED_USERNAME+"/lights";
 const DISCOVERY_GROUP = "/api/"+AUTHORIZED_USERNAME+"/groups";
 
 //scenes
-var SLEEP_MODE = 4;
+var SLEEP_MODE = "2";
 
 //for light request
 var http = require('http');
@@ -233,9 +233,9 @@ exports.handler = function(event,context,callback){
       callback(null,response);
     };
     //handle scene
-    var requestdNamespace = event.directive.header.namespace;
-    if(requestdNamespace == NAMESPACE_POWER_CONTROL){
-      console.log("adsfasdf");
+    var requestNamespace = event.directive.header.namespace;
+    var requestName = event.directive.header.name;
+    if(requestName == NAME_TURN_ON){
       var id = event.directive.endpoint.endpointId;
       var unit = event.directive.endpoint.cookie.unit;
       if(isScene(unit,id)){
@@ -248,7 +248,7 @@ exports.handler = function(event,context,callback){
     }
 		//handle other things
     try{
-        switch(requestdNamespace){
+        switch(requestNamespace){
             case NAMESPACE_DISCOVERY:
                 handleDiscovery(event,returnResponse);
                 break;
