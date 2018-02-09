@@ -94,7 +94,7 @@ function handleResponse(response,id,unit,body,callback1,callback2){
 //request from skill adapter to gateway
 var gwRequest= function(p, m, id, unit, body, callback1, callback2){
   var options = {
-    host: gate.sl.ip,
+    host: gate.hue.ip,
     path: p,
     method: m,
     headers: {
@@ -379,13 +379,13 @@ var handleBrightnessControl = function(event,callback){
     switch(requestName){
         case NAME_SET_BRIGHTNESS:
             value = event.directive.payload.brightness;
-            body["bri"] = value;
+            body["bri"] = (value * 255 / 100) | 0;
             var path = createControlPath(id,unit,false);
             gwRequest(path,'PUT',null,null,body,makeResponse,callback);
             break;
         case NAME_ADJUST_BRIGHTNESS:
             value = event.directive.payload.brightnessDelta;
-            body["bri"] = value;
+            body["bri"] = (value * 255 / 100) | 0;
             var path = createControlPath(id,unit,true);
             gwRequest(path,'GET',id,unit,body,makeResponse,callback);
             break;
